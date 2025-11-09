@@ -26,6 +26,7 @@ import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.spigotmc.event.entity.EntityMountEvent;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -45,6 +46,7 @@ public final class Fahare extends JavaPlugin implements Listener {
     private final NamespacedKey limboWorldKey = new NamespacedKey(this, "limbo");
     private final NamespacedKey lastResetIdKey = new NamespacedKey(this, "last_reset_id");
     private final Map<UUID, Integer> deaths = new HashMap<>();
+    private final Set<UUID> playersPendingMountCancel = new HashSet<>();
     private int currentResetId = 0;
     private World limboWorld;
     private Path worldContainer;
@@ -377,9 +379,25 @@ public final class Fahare extends JavaPlugin implements Listener {
             // Player was offline during reset, apply reset procedure
             resetPlayer(player);
             player.teleport(fakeOverworld().getSpawnLocation());
+
+            // Store the player's UID for one tick to stop the potential EntityMountEvent
+            playersPendingMountCancel.add(player.getUniqueId());
+            Bukkit.getScheduler().runTaskLater(this, () -> {
+                playersPendingMountCancel.remove(player.getUniqueId());
+            }, 1L);
         } else if (player.getWorld().getKey().equals(REAL_OVERWORLD_KEY)) {
             // Normal case: redirect from real overworld to fake overworld
             player.teleport(fakeOverworld().getSpawnLocation());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onEntityMount(EntityMountEvent event) {
+        if (playersPendingMountCancel.contains(event.getEntity().getUniqueId())) {
+            // Player is re-mounting a previously mounted entity from a reset world, cancel and remove it
+            // This causes a vanilla log message "Couldn't reattach entity to player", but it is harmless
+            event.setCancelled(true);
+            event.getMount().remove();
         }
     }
 
