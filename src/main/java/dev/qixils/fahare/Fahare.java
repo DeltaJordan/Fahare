@@ -43,7 +43,9 @@ public final class Fahare extends JavaPlugin implements Listener {
     private static final Random RANDOM = new Random();
     private final NamespacedKey fakeOverworldKey = new NamespacedKey(this, "overworld");
     private final NamespacedKey limboWorldKey = new NamespacedKey(this, "limbo");
+    private final NamespacedKey lastResetIdKey = new NamespacedKey(this, "last_reset_id");
     private final Map<UUID, Integer> deaths = new HashMap<>();
+    private int currentResetId = 0;
     private World limboWorld;
     private Path worldContainer;
     private @Nullable Path backupContainer;
@@ -159,6 +161,7 @@ public final class Fahare extends JavaPlugin implements Listener {
         autoReset = config.getBoolean("auto-reset", autoReset);
         anyDeath = config.getBoolean("any-death", anyDeath);
         lives = Math.max(1, config.getInt("lives", lives));
+        currentResetId = config.getInt("current-reset-id", 0);
     }
 
     public int getDeathsFor(UUID player) {
@@ -175,6 +178,26 @@ public final class Fahare extends JavaPlugin implements Listener {
 
     public boolean isAlive(UUID player) {
         return !isDead(player);
+    }
+
+    private int getPlayerLastResetId(Player player) {
+        return player.getPersistentDataContainer().getOrDefault(lastResetIdKey, org.bukkit.persistence.PersistentDataType.INTEGER, 0);
+    }
+
+    private void setPlayerLastResetId(Player player, int resetId) {
+        player.getPersistentDataContainer().set(lastResetIdKey, org.bukkit.persistence.PersistentDataType.INTEGER, resetId);
+    }
+
+    private void resetPlayer(Player player) {
+        player.setGameMode(GameMode.SURVIVAL);
+        player.getInventory().clear();
+        player.getEnderChest().clear();
+        player.setLevel(0);
+        player.setExp(0);
+        player.setHealth(20);
+        player.setFoodLevel(20);
+        player.setSaturation(5);
+        setPlayerLastResetId(player, currentResetId);
     }
 
     private void deleteNextWorld(List<World> worlds, @Nullable Path backupDestination) {
@@ -241,18 +264,18 @@ public final class Fahare extends JavaPlugin implements Listener {
         if (limboWorld == null)
             return;
         deaths.clear();
+
+        // Update and save current reset ID to keep track of players that were offline during the reset
+        currentResetId++;
+        getConfig().set("current-reset-id", currentResetId);
+        saveConfig();
+
         // teleport all players to limbo
         Location destination = new Location(limboWorld, 0, 100, 0);
         for (Player player : Bukkit.getOnlinePlayers()) {
+            resetPlayer(player);
             player.setGameMode(GameMode.SPECTATOR);
-            player.getInventory().clear();
-            player.getEnderChest().clear();
-            player.setLevel(0);
-            player.setExp(0);
             player.teleport(destination);
-            player.setHealth(20);
-            player.setFoodLevel(20);
-            player.setSaturation(5);
         }
         // check if worlds are ticking
         if (Bukkit.isTickingWorlds()) {
@@ -347,8 +370,17 @@ public final class Fahare extends JavaPlugin implements Listener {
     @EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        if (player.getWorld().getKey().equals(REAL_OVERWORLD_KEY))
+
+        // Check if player missed a reset
+        int playerLastReset = getPlayerLastResetId(player);
+        if (playerLastReset < currentResetId) {
+            // Player was offline during reset, apply reset procedure
+            resetPlayer(player);
             player.teleport(fakeOverworld().getSpawnLocation());
+        } else if (player.getWorld().getKey().equals(REAL_OVERWORLD_KEY)) {
+            // Normal case: redirect from real overworld to fake overworld
+            player.teleport(fakeOverworld().getSpawnLocation());
+        }
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
