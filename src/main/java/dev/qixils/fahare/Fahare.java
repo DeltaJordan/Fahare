@@ -1,10 +1,10 @@
 package dev.qixils.fahare;
 
-import cloud.commandframework.Command;
-import cloud.commandframework.bukkit.CloudBukkitCapabilities;
-import cloud.commandframework.execution.CommandExecutionCoordinator;
-import cloud.commandframework.minecraft.extras.MinecraftExceptionHandler;
-import cloud.commandframework.paper.PaperCommandManager;
+import com.mojang.brigadier.Command;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -14,7 +14,6 @@ import net.kyori.adventure.util.UTF8ResourceBundleControl;
 import org.bukkit.*;
 import org.bukkit.advancement.Advancement;
 import org.bukkit.advancement.AdvancementProgress;
-import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -27,6 +26,8 @@ import org.bukkit.event.player.PlayerPortalEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.permissions.Permission;
+import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
@@ -48,6 +49,8 @@ public final class Fahare extends JavaPlugin implements Listener {
 
     private static final NamespacedKey REAL_OVERWORLD_KEY = NamespacedKey.minecraft("overworld");
     private static final Random RANDOM = new Random();
+    // todo: i18n?
+    private final Permission resetPerm = new Permission("fahare.reset", "Whether to allow manually resetting the world", PermissionDefault.OP);
     private final NamespacedKey fakeOverworldKey = new NamespacedKey(this, "overworld");
     private final NamespacedKey limboWorldKey = new NamespacedKey(this, "limbo");
     private final NamespacedKey lastResetIdKey = new NamespacedKey(this, "last_reset_id");
@@ -144,7 +147,7 @@ public final class Fahare extends JavaPlugin implements Listener {
             }
         }
 
-        // Load server properties to extract level-seed
+        // Load server properties to extract level-seed & difficulty
         Properties properties = new Properties();
         Path serverProperties = worldContainer.resolve("server.properties");
         if (Files.exists(serverProperties)) {
@@ -191,35 +194,16 @@ public final class Fahare extends JavaPlugin implements Listener {
         World fakeOverworld = createFakeOverworld();
 
         // Register commands
-        try {
-            final PaperCommandManager<CommandSender> commandManager = PaperCommandManager.createNative(this, CommandExecutionCoordinator.simpleCoordinator());
-            if (commandManager.hasCapability(CloudBukkitCapabilities.BRIGADIER)) {
-                try {
-                    commandManager.registerBrigadier();
-                } catch (Exception ignored) {
-                }
-            }
-
-            // Commands
-            // TODO: help command
-            // TODO: i18n descriptions
-            Command.Builder<CommandSender> cmd = commandManager.commandBuilder("fahare");
-            commandManager.command(cmd
-                    .literal("reset")
-                    .permission("fahare.reset")
-                    .handler(c -> {
-                        c.getSender().sendMessage(translatable("fhr.chat.resetting"));
+        getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, commands -> {
+            LiteralArgumentBuilder<CommandSourceStack> resetCommand = Commands.literal("reset")
+                    .requires(Commands.restricted(source -> source.getSender().hasPermission(resetPerm)))
+                    .executes(ctx -> {
+                        ctx.getSource().getSender().sendMessage(translatable("fhr.chat.resetting"));
                         reset();
-                    }));
-
-            // Exception handler
-            new MinecraftExceptionHandler<CommandSender>()
-                    .withDefaultHandlers()
-                    .withDecorator(component -> component.colorIfAbsent(NamedTextColor.RED))
-                    .apply(commandManager, sender -> sender);
-        } catch (Exception e) {
-            getComponentLogger().error(translatable("fhr.log.error.commands"), e);
-        }
+                        return Command.SINGLE_SUCCESS;
+                    });
+            commands.registrar().register(resetCommand.build());
+        });
 
         // Register events and tasks
         Bukkit.getPluginManager().registerEvents(this, this);

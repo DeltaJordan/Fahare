@@ -1,7 +1,7 @@
 plugins {
     java
-    id("xyz.jpenilla.run-paper") version "2.3.0"
-    id("com.gradleup.shadow") version "9.3.1"
+    id("xyz.jpenilla.run-paper") version "3.0.2"
+//    id("com.gradleup.shadow") version "9.3.1"
 }
 
 group = "dev.qixils"
@@ -24,8 +24,6 @@ repositories {
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:$mcVersion-R0.1-SNAPSHOT")
-    implementation("cloud.commandframework:cloud-paper:1.8.4")
-    implementation("cloud.commandframework:cloud-minecraft-extras:1.8.4")
 }
 
 java {
@@ -64,11 +62,12 @@ tasks.processResources {
     }
 }
 
+/*
 tasks.shadowJar {
-    relocate("cloud.commandframework", "dev.qixils.fahare.shadow.cloud")
     minimize()
 
     dependencies {
         exclude(dependency("net.kyori:.*"))
     }
 }
+ */
