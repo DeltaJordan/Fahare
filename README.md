@@ -3,6 +3,10 @@
 Fahare (short for **Fa**st **Ha**rdcore **Re**set) is a Minecraft: Java Edition multiplayer server mod that
 automatically resets your hardcore world when all online players die. It is currently available for Paper 1.19.3+.
 
+By default, the mod is configured to a fairly normal hardcore experience,
+though note that for the full experience you should change `difficulty` in your `server.properties` to `hard`.
+This will trigger the mod to enable hardcore hearts and grants a proper hardcore experience.
+
 ## Configuration
 
 | Setting      | Default | Description                                                                                                                                                                          |
