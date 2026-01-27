@@ -27,6 +27,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -53,6 +54,8 @@ public final class Fahare extends JavaPlugin implements Listener {
     private boolean autoReset = true;
     private boolean anyDeath = false;
     private int lives = 1;
+    private Difficulty forceDifficulty = null;
+    private long forceSeed = 0L;
 
     private static @NotNull World overworld() {
         return Objects.requireNonNull(Bukkit.getWorld(REAL_OVERWORLD_KEY), "Overworld not found");
@@ -62,13 +65,33 @@ public final class Fahare extends JavaPlugin implements Listener {
         return Objects.requireNonNullElseGet(Bukkit.getWorld(fakeOverworldKey), this::createFakeOverworld);
     }
 
+    private long getNewSeed() {
+        if (forceSeed != 0L) return forceSeed;
+        return RANDOM.nextLong();
+    }
+
+    private Difficulty getNewDifficulty() {
+        if (forceDifficulty != null) return forceDifficulty;
+        return overworld().getDifficulty();
+    }
+
+    private boolean getNewHardcore(Difficulty difficulty) {
+        return autoReset && lives <= 1 && difficulty == Difficulty.HARD;
+    }
+
     private @NotNull World createFakeOverworld() {
         // Create fake overworld
-        long seed = RANDOM.nextLong();
+        Difficulty difficulty = getNewDifficulty();
+        long seed = getNewSeed();
         getComponentLogger().info(translatable("fhr.log.overworld-seed", text(seed)));
-        WorldCreator creator = new WorldCreator(fakeOverworldKey).copy(overworld()).seed(seed);
+        WorldCreator creator = new WorldCreator(fakeOverworldKey)
+                .copy(overworld())
+                .seed(seed)
+                .hardcore(getNewHardcore(difficulty));
+
         World world = Objects.requireNonNull(creator.createWorld(), "Could not load fake overworld");
-        world.setDifficulty(overworld().getDifficulty());
+        world.setDifficulty(difficulty);
+
         return world;
     }
 
@@ -87,6 +110,33 @@ public final class Fahare extends JavaPlugin implements Listener {
             } catch (Exception e) {
                 getComponentLogger().error(translatable("fhr.log.error.backup-folder"), e);
                 backupContainer = null;
+            }
+        }
+
+        // Load server properties to extract level-seed
+        Properties properties = new Properties();
+        Path serverProperties = worldContainer.resolve("server.properties");
+        if (Files.exists(serverProperties)) {
+            try (InputStream contents = Files.newInputStream(serverProperties)) {
+                properties.load(contents);
+                try {
+                    String levelSeed = properties.getProperty("level-seed", "");
+                    forceSeed = Long.parseLong(levelSeed);
+                    getComponentLogger().info(translatable("fhr.log.info.found-seed", text(forceSeed)));
+                } catch (Exception e) {
+                    forceSeed = 0;
+                    getComponentLogger().info(translatable("fhr.log.info.missing-seed"));
+                }
+
+                String difficulty = properties.getProperty("difficulty", "");
+                try {
+                    forceDifficulty = Difficulty.valueOf(difficulty.toUpperCase(Locale.US));
+                    getComponentLogger().warn(translatable("fhr.log.info.difficulty", text(String.valueOf(forceDifficulty))));
+                } catch (Exception e) {
+                    getComponentLogger().warn(translatable("fhr.log.error.difficulty", text(difficulty)));
+                }
+            } catch (Exception e) {
+                getComponentLogger().warn(translatable("fhr.log.error.properties"), e);
             }
         }
 
@@ -142,7 +192,7 @@ public final class Fahare extends JavaPlugin implements Listener {
 
         // Register events and tasks
         Bukkit.getPluginManager().registerEvents(this, this);
-        Bukkit.getScheduler().runTaskTimer(this, () -> {
+        Bukkit.getGlobalRegionScheduler().runAtFixedRate(this, $ -> {
             // Teleport players from real overworld
             Location destination = fakeOverworld.getSpawnLocation();
             for (Player player : overworld().getPlayers()) {
@@ -192,7 +242,7 @@ public final class Fahare extends JavaPlugin implements Listener {
 
         // check if worlds are ticking
         if (Bukkit.isTickingWorlds()) {
-            Bukkit.getScheduler().runTaskLater(this, () -> deleteNextWorld(worlds, backupDestination), 1);
+            Bukkit.getGlobalRegionScheduler().runDelayed(this, $ -> deleteNextWorld(worlds, backupDestination), 1);
             return;
         }
 
@@ -201,9 +251,15 @@ public final class Fahare extends JavaPlugin implements Listener {
         String worldName = world.getName();
         Component worldKey = text(worldName);
         WorldCreator creator = new WorldCreator(worldName, world.getKey());
-        long seed = RANDOM.nextLong();
+
+        Difficulty difficulty = getNewDifficulty();
+        long seed = getNewSeed();
         getComponentLogger().info(translatable("fhr.log.seed", worldKey, text(seed)));
-        creator.copy(world).seed(seed);
+
+        creator
+                .copy(world)
+                .seed(seed)
+                .hardcore(getNewHardcore(difficulty));
 
         // unload world
         if (Bukkit.unloadWorld(world, backup)) {
@@ -221,7 +277,11 @@ public final class Fahare extends JavaPlugin implements Listener {
                 }
 
                 // create new world
-                creator.createWorld();
+                World newWorld = creator.createWorld();
+                if (newWorld == null) throw new IllegalStateException("World was null");
+
+                world.setDifficulty(difficulty);
+
                 Bukkit.getServer().sendMessage(translatable("fhr.chat.success", worldKey));
             } catch (Exception e) {
                 Component error = translatable("fhr.chat.error", NamedTextColor.RED, worldKey);
@@ -232,7 +292,7 @@ public final class Fahare extends JavaPlugin implements Listener {
             Bukkit.getServer().sendMessage(translatable("fhr.chat.error", NamedTextColor.RED, worldKey));
         }
 
-        Bukkit.getScheduler().runTaskLater(this, () -> deleteNextWorld(worlds, backupDestination), 1);
+        Bukkit.getGlobalRegionScheduler().runDelayed(this, $ -> deleteNextWorld(worlds, backupDestination), 1);
     }
 
     public synchronized void reset() {
@@ -256,7 +316,7 @@ public final class Fahare extends JavaPlugin implements Listener {
         }
         // check if worlds are ticking
         if (Bukkit.isTickingWorlds()) {
-            Bukkit.getScheduler().runTaskLater(this, this::reset, 1);
+            Bukkit.getGlobalRegionScheduler().runDelayed(this, $ -> reset(), 1);
             return;
         }
         resetting = true;
@@ -306,7 +366,7 @@ public final class Fahare extends JavaPlugin implements Listener {
         addDeathTo(player.getUniqueId());
         if (isAlive(player.getUniqueId()))
             return;
-        Bukkit.getScheduler().runTaskLater(this, () -> {
+        Bukkit.getRegionScheduler().runDelayed(this, player.getLocation(), $ -> {
             player.setGameMode(GameMode.SPECTATOR);
             player.spigot().respawn();
             resetCheck(true);

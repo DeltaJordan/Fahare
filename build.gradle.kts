@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "dev.qixils"
-version = "1.2.2-SNAPSHOT"
+version = "1.3.0-SNAPSHOT"
 
 val mcVersion = "1.21.11"
 val targetJavaVersion = 21
