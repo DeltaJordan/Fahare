@@ -12,6 +12,8 @@ import net.kyori.adventure.translation.GlobalTranslator;
 import net.kyori.adventure.translation.TranslationRegistry;
 import net.kyori.adventure.util.UTF8ResourceBundleControl;
 import org.bukkit.*;
+import org.bukkit.advancement.Advancement;
+import org.bukkit.advancement.AdvancementProgress;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -24,6 +26,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerPortalEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
@@ -265,13 +268,34 @@ public final class Fahare extends JavaPlugin implements Listener {
 
     private void resetPlayer(Player player) {
         player.setGameMode(GameMode.SURVIVAL);
+        player.closeInventory();
+        player.clearActiveItem();
+        player.setItemOnCursor(ItemStack.empty());
         player.getInventory().clear();
         player.getEnderChest().clear();
+        player.updateInventory();
         player.setLevel(0);
         player.setExp(0);
         player.setHealth(20);
         player.setFoodLevel(20);
         player.setSaturation(5);
+        player.clearActivePotionEffects();
+
+        try {
+            Iterator<Advancement> advancements = Bukkit.advancementIterator();
+            while (advancements.hasNext()) {
+                Advancement advancement = advancements.next();
+                AdvancementProgress progress = player.getAdvancementProgress(advancement);
+                // list is an unmodifiable copy so iterating is safe
+                for (String criteria : progress.getAwardedCriteria()) {
+                    progress.revokeCriteria(criteria);
+                }
+            }
+        } catch (Exception e) {
+            // idk it just feels like it would error doesn't it
+            getComponentLogger().warn(translatable("fhr.log.error.advancements"), e);
+        }
+
         setPlayerLastResetId(player, currentResetId);
     }
 

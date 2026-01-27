@@ -10,7 +10,8 @@
 
 ### Changed
 
-- Offline players now have their data cleared when joining the server after a reset
+- Offline players now have their data cleared when joining the server after a reset (@leumasme)
+- More data is cleared on reset
 
 ## [1.2.1] - 2024-07-22
 
