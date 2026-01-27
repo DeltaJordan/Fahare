@@ -16,7 +16,7 @@ N/A
 
 - Offline players now have their data cleared when joining the server after a reset (@leumasme)
 - More data is cleared on reset
-- Migrated commands to native brigadier for 
+- Migrated commands to native brigadier for
 
 ## [1.2.1] - 2024-07-22
 
