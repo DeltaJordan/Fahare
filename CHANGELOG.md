@@ -1,10 +1,16 @@
 # Changelog
 
-## [unreleased] - 2025-08-31
+## [unreleased] - 2026-01-27
 
 ### Added
 
 - Newly generated worlds log their seeds to console
+- All generated worlds now respect the `level-seed` and `difficulty` properties of `server.properties`
+- Hardcore hearts are now displayed when `lives` is set to 1, `auto-reset` is set to true, and `difficulty` is set to hard
+
+### Changed
+
+- Offline players now have their data cleared when joining the server after a reset
 
 ## [1.2.1] - 2024-07-22
 
