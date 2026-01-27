@@ -24,10 +24,12 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerPortalEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -52,6 +54,7 @@ public final class Fahare extends JavaPlugin implements Listener {
     private World limboWorld;
     private Path worldContainer;
     private @Nullable Path backupContainer;
+    private @Nullable Path resetIdPath;
     private boolean resetting = false;
     // config
     private boolean backup = true;
@@ -99,10 +102,31 @@ public final class Fahare extends JavaPlugin implements Listener {
         return world;
     }
 
+    private void saveResetId() {
+        // todo: if we have to expand any further than 1 saved value then we should get a json but for now this is fine
+        if (resetIdPath == null) return;
+
+        try {
+            Files.createDirectories(resetIdPath.getParent());
+            Files.writeString(resetIdPath, String.valueOf(currentResetId));
+        } catch (IOException e) {
+            getComponentLogger().warn(translatable("fhr.log.error.save-reset-id"), e);
+        }
+    }
+
     @Override
     public void onEnable() {
         // Load config
         loadConfig();
+        resetIdPath = getDataPath().resolve("current-reset-id.txt");
+        try {
+            if (Files.exists(resetIdPath)) {
+                String idString = Files.readString(resetIdPath).trim();
+                currentResetId = Integer.parseInt(idString);
+            }
+        } catch (Exception ignored) {
+            // file probably doesn't exist yet
+        }
 
         // Create backup folder
         worldContainer = Bukkit.getWorldContainer().toPath();
@@ -213,7 +237,6 @@ public final class Fahare extends JavaPlugin implements Listener {
         autoReset = config.getBoolean("auto-reset", autoReset);
         anyDeath = config.getBoolean("any-death", anyDeath);
         lives = Math.max(1, config.getInt("lives", lives));
-        currentResetId = config.getInt("current-reset-id", 0);
     }
 
     public int getDeathsFor(UUID player) {
@@ -233,11 +256,11 @@ public final class Fahare extends JavaPlugin implements Listener {
     }
 
     private int getPlayerLastResetId(Player player) {
-        return player.getPersistentDataContainer().getOrDefault(lastResetIdKey, org.bukkit.persistence.PersistentDataType.INTEGER, 0);
+        return player.getPersistentDataContainer().getOrDefault(lastResetIdKey, PersistentDataType.INTEGER, 0);
     }
 
     private void setPlayerLastResetId(Player player, int resetId) {
-        player.getPersistentDataContainer().set(lastResetIdKey, org.bukkit.persistence.PersistentDataType.INTEGER, resetId);
+        player.getPersistentDataContainer().set(lastResetIdKey, PersistentDataType.INTEGER, resetId);
     }
 
     private void resetPlayer(Player player) {
@@ -329,8 +352,7 @@ public final class Fahare extends JavaPlugin implements Listener {
 
         // Update and save current reset ID to keep track of players that were offline during the reset
         currentResetId++;
-        getConfig().set("current-reset-id", currentResetId);
-        saveConfig();
+        saveResetId();
 
         // teleport all players to limbo
         Location destination = new Location(limboWorld, 0, 100, 0);
@@ -442,9 +464,11 @@ public final class Fahare extends JavaPlugin implements Listener {
 
             // Store the player's UID for one tick to stop the potential EntityMountEvent
             playersPendingMountCancel.add(player.getUniqueId());
-            Bukkit.getScheduler().runTaskLater(this, () -> {
-                playersPendingMountCancel.remove(player.getUniqueId());
-            }, 1L);
+            Bukkit.getGlobalRegionScheduler().runDelayed(
+                    this,
+                    $ -> playersPendingMountCancel.remove(player.getUniqueId()),
+                    1L
+            );
         } else if (player.getWorld().getKey().equals(REAL_OVERWORLD_KEY)) {
             // Normal case: redirect from real overworld to fake overworld
             player.teleport(fakeOverworld().getSpawnLocation());
