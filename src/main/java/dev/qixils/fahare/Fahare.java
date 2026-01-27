@@ -195,13 +195,15 @@ public final class Fahare extends JavaPlugin implements Listener {
 
         // Register commands
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, commands -> {
-            LiteralArgumentBuilder<CommandSourceStack> resetCommand = Commands.literal("reset")
-                    .requires(Commands.restricted(source -> source.getSender().hasPermission(resetPerm)))
-                    .executes(ctx -> {
-                        ctx.getSource().getSender().sendMessage(translatable("fhr.chat.resetting"));
-                        reset();
-                        return Command.SINGLE_SUCCESS;
-                    });
+            LiteralArgumentBuilder<CommandSourceStack> resetCommand = Commands.literal("fahare")
+                            .then(Commands.literal("reset")
+                                    .requires(Commands.restricted(source -> source.getSender().hasPermission(resetPerm)))
+                                    .executes(ctx -> {
+                                        ctx.getSource().getSender().sendMessage(translatable("fhr.chat.resetting"));
+                                        reset();
+                                        return Command.SINGLE_SUCCESS;
+                                    })
+                            );
             commands.registrar().register(resetCommand.build());
         });
 

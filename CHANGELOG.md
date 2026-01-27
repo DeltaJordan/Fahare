@@ -4,6 +4,12 @@
 
 N/A
 
+## [1.3.1] - 2026-01-27
+
+### Fixed
+
+- Fixed the reset command registering as `/reset` instead of `/fahare reset`
+
 ## [1.3.0] - 2026-01-27
 
 ### Added
@@ -16,7 +22,7 @@ N/A
 
 - Offline players now have their data cleared when joining the server after a reset (@leumasme)
 - More data is cleared on reset
-- Migrated commands to native brigadier for
+- Migrated commands to native brigadier for reduced file size
 - Target Minecraft & Java versions bumped; updates prior to 1.21.6 no longer supported
 
 ## [1.2.1] - 2024-07-22
