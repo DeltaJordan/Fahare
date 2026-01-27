@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "dev.qixils"
-version = "1.3.0-SNAPSHOT"
+version = "1.3.0"
 
 val mcVersion = "1.21.11"
 val targetJavaVersion = 21
@@ -47,9 +47,11 @@ tasks {
         minecraftVersion(mcVersion)
     }
 
+    /*
     build {
         dependsOn(shadowJar)
     }
+     */
 }
 
 tasks.processResources {
