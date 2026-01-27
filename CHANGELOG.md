@@ -17,6 +17,7 @@ N/A
 - Offline players now have their data cleared when joining the server after a reset (@leumasme)
 - More data is cleared on reset
 - Migrated commands to native brigadier for
+- Target Minecraft & Java versions bumped; updates prior to 1.21.6 no longer supported
 
 ## [1.2.1] - 2024-07-22
 
